@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Tomato Disease Classifier</title>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.6.0/dist/tf.min.js"></script>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: #f4f6f8;
+      color: #333;
+      padding: 2rem;
+    }
+    h1 {
+      margin-bottom: 0.5rem;
+      font-size: 2rem;
+      color: #444;
+    }
+    h2.subtitle {
+      margin-bottom: 2rem;
+      font-size: 1rem;
+      color: #666;
+    }
+    .container {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 2rem;
+      width: 100%;
+      max-width: 900px;
+    }
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      width: 100%;
+    }
+    .btn-green {
+      background: #28a745;
+      color: #fff;
+      text-decoration: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      margin-top: 1rem;
+      transition: background 0.2s ease;
+    }
+    .btn-green:hover {
+      background: #218838;
+    }
+    #preview {
+      border: 1px solid #ccc;
+      object-fit: contain;
+      max-width: 100%;
+      width: 140px;
+      height: 140px;
+    }
+    .note {
+      font-size: 0.9rem;
+      color: #555;
+      margin-top: 0.5rem;
+      text-align: center;
+    }
+    button {
+      background: #000;
+      color: #fff;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+      margin-top: 1rem;
+    }
+    button:disabled {
+      background: #bbb;
+      cursor: default;
+    }
+    button:not(:disabled):hover {
+      background: #333;
+    }
+    #error {
+      color: #d9534f;
+      margin-top: 0.5rem;
+      min-height: 1.2em;
+    }
+    #result {
+      margin-top: 1rem;
+      font-size: 1.2rem;
+      font-weight: bold;
+    }
+    footer {
+      margin-top: 2rem;
+      font-size: 0.9rem;
+      color: #555;
+    }
+    @media(max-width: 700px) {
+      .container { grid-template-columns: 1fr; }
+      #preview {
+        width: 100px;
+        height: 100px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Tomato Disease Classifier</h1>
+  <h2 class="subtitle">Developed by Er. Sarthak Aganja (<a href="mailto:sarthak.aganja@icp.edu.np">sarthak.aganja@icp.edu.np</a>)</h2>
+  <div class="container">
+    <div class="card">
+      <input type="file" id="imageInput" accept="image/*" />
+      <a href="https://drive.google.com/drive/folders/1J4WeCjScDPVyiGfMVHmKU8eDMaGRo1op?usp=sharing" 
+         class="btn-green" target="_blank" rel="noopener noreferrer">
+        Reference files for Dataset (Google drive)
+      </a>
+      <div class="note">⚠️ Image must be exactly 256×256 pixels.</div>
+      <div id="error"></div>
+      <img id="preview" src="#" alt="Image preview" hidden />
+      <button id="predictBtn" disabled>Predict</button>
+      <div id="result">Prediction: –</div>
+    </div>
+    <div class="card model-desc">
+      <h3>Model Architecture</h3>
+      <p>This CNN is structured as follows:</p>
+      <ul>
+        <li>Input shape: <code>(50, 50, 3)</code></li>
+        <li>Conv2D(32) + BatchNorm + ReLU + MaxPooling</li>
+        <li>Conv2D(64) + BatchNorm + ReLU + MaxPooling</li>
+        <li>Conv2D(128) + BatchNorm + ReLU + MaxPooling</li>
+        <li>Conv2D(256) + BatchNorm + ReLU + MaxPooling</li>
+        <li>Flatten + Dense(512) + Dropout(0.5)</li>
+        <li>Output: Dense(10) with softmax</li>
+      </ul>
+      <p>This enables robust classification across 10 tomato disease classes.</p>
+    </div>
+  </div>
+  <footer>
+    Developed by Er. Sarthak Aganja • <a href="mailto:sarthak.aganja@icp.edu.np">sarthak.aganja@icp.edu.np</a>
+  </footer>
+  <script>
+    const classNames = [
+      'Tomato___Bacterial_spot',
+      'Tomato___Early_blight',
+      'Tomato___Late_blight',
+      'Tomato___Leaf_Mold',
+      'Tomato___Septoria_leaf_spot',
+      'Tomato___Spider_mites Two-spotted_spider_mite',
+      'Tomato___Target_Spot',
+      'Tomato___Tomato_Yellow_Leaf_Curl_Virus',
+      'Tomato___Tomato_mosaic_virus',
+      'Tomato___healthy'
+    ];
+
+    let model;
+    const IMG_SIZE = 50;
+
+    async function loadModel() {
+      document.getElementById('result').innerText = 'Loading model...';
+      model = await tf.loadGraphModel('tfjs_model_tomato_50px_improved/model.json');
+      document.getElementById('result').innerText = 'Model loaded. Please upload a 256x256 image.';
+    }
+
+    function preprocessImage(imageElement) {
+      return tf.tidy(() => {
+        let tensor = tf.browser.fromPixels(imageElement)
+          .resizeNearestNeighbor([IMG_SIZE, IMG_SIZE])
+          .toFloat()
+          .div(255.0)
+          .expandDims(0);
+        return tensor;
+      });
+    }
+
+    document.getElementById('imageInput').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      const errorDiv = document.getElementById('error');
+      const resultDiv = document.getElementById('result');
+      errorDiv.innerText = '';
+      resultDiv.innerText = '';
+
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        const img = new Image();
+        img.onload = function () {
+          if (img.width !== 256 || img.height !== 256) {
+            errorDiv.innerText = 'Please upload an image of exactly 256x256 pixels.';
+            document.getElementById('preview').hidden = true;
+            document.getElementById('predictBtn').disabled = true;
+          } else {
+            const preview = document.getElementById('preview');
+            preview.src = img.src;
+            preview.hidden = false;
+            document.getElementById('predictBtn').disabled = false;
+          }
+        };
+        img.onerror = () => {
+          errorDiv.innerText = 'Invalid image file.';
+        };
+        img.src = evt.target.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    document.getElementById('predictBtn').addEventListener('click', async (e) => {
+      const btn = e.target;
+      const img = document.getElementById('preview');
+      const resultDiv = document.getElementById('result');
+
+      if (!model || img.hidden) return;
+
+      // Show processing text and release UI thread
+      resultDiv.innerText = 'Processing...';
+      btn.innerText = 'Predicting...';
+      btn.disabled = true;
+      await new Promise(r => setTimeout(r, 50));
+
+      const inputTensor = preprocessImage(img);
+      const predictions = model.predict(inputTensor);
+      const data = await predictions.data();
+      const topIdx = data.indexOf(Math.max(...data));
+
+      resultDiv.innerText = `Prediction: ${classNames[topIdx]} (confidence: ${(data[topIdx] * 100).toFixed(2)}%)`;
+
+      tf.dispose([inputTensor, predictions]);
+
+      btn.innerText = 'Predict';
+      btn.disabled = false;
+    });
+
+    loadModel();
+  </script>
+</body>
+</html>

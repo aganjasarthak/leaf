@@ -1,5 +1,6 @@
-<!DOCTYPE html>
+<!DOCTYPE html> 
 <html lang="en">
+
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
@@ -42,6 +43,21 @@
       flex-direction: column;
       align-items: center;
       width: 100%;
+    }
+    /* Style the file input button to be highlightable */
+    input[type="file"]::-webkit-file-upload-button,
+    input[type="file"]::file-selector-button {
+      background: #28a745;
+      color: #fff;
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    input[type="file"]::-webkit-file-upload-button:hover,
+    input[type="file"]::file-selector-button:hover {
+      background: #218838;
     }
     .btn-green {
       background: #28a745;
@@ -109,6 +125,7 @@
     }
   </style>
 </head>
+
 <body>
   <h1>Tomato Disease Classifier</h1>
   <h2 class="subtitle">Developed by Er. Sarthak Aganja (<a href="mailto:sarthak.aganja@icp.edu.np">sarthak.aganja@icp.edu.np</a>)</h2>
@@ -216,7 +233,6 @@
 
       if (!model || img.hidden) return;
 
-      // Show processing text and release UI thread
       resultDiv.innerText = 'Processing...';
       btn.innerText = 'Predicting...';
       btn.disabled = true;
